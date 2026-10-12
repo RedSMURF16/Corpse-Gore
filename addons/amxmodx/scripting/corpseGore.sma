@@ -6,7 +6,14 @@
 *	Description:
 *
 *	Cvars:
-*		None
+*       corpsegore_enable           - Enable or disable the plugin.
+*       corpsegore_gib_knife        - Gib corpses killed with a knife.
+*       corpsegore_gib_explosive    - Gib corpses killed by explosives.
+*       corpsegore_break_velocity   - Velocity applied to flying gibs.
+*       corpsegore_break_count      - Number of gibs spawned.
+*       corpsegore_break_life       - Gib lifetime in seconds.
+*       corpsegore_blood_color      - Blood color (195 - Yellow, 247 - Red).
+*       corpsegore_blood_scale      - Blood effect scale.
 *
 *	Commands:
 *       None
