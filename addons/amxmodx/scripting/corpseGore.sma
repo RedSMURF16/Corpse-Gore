@@ -35,7 +35,7 @@
 
 #define CORPSE_BONES                36
 #define CORPSE_PAD                  8.0
-#define CORPSE_HEIGHT               0.1
+#define CORPSE_HEIGHT               1.0
 
 new g_cvarEnable, g_cvarGibKnife, g_cvarGibExplosive, g_cvarBreakVelocity, g_cvarBreakCount, g_cvarBreakLife,
     g_cvarBloodColor, g_cvarBloodScale,
@@ -151,16 +151,20 @@ public fwdTraceAttack(iEnt, iAttacker, Float:fDamage, Float:fDir[3], iTr, iBits)
     if ( !g_bEnable || !isCorpseGore(iEnt) || pev(iEnt, CORPSEGORE_PENDING) )
         return HAM_IGNORED
 
-    if ( g_bGibKnife && is_user_alive(iAttacker) && get_user_weapon(iAttacker) == CSW_KNIFE )
+    if ( g_bGibKnife &&
+    is_user_alive(iAttacker) &&
+    get_user_weapon(iAttacker) == CSW_KNIFE )
     {
         g_fKnifeHit[iAttacker] = get_gametime()
         corpseGoreGib(iEnt)
-        return HAM_SUPERCEDE
+    }
+    else
+    {
+        new Float:fEnd[3]
+        get_tr2(iTr, TR_vecEndPos, fEnd)
+        corpseGoreBlood(fEnd)
     }
 
-    new Float:fEnd[3]
-    get_tr2(iTr, TR_vecEndPos, fEnd)
-    corpseGoreBlood(fEnd)
     return HAM_SUPERCEDE
 }
 
@@ -237,7 +241,7 @@ stock corpseActivate(iEnt)
 
 stock bool:corpseBlocked(iEnt)
 {
-    new Float:fMin[3], Float:fMax[3], Float:fPMin[3], Float:fPMax[3]
+    new Float:fMin[3], Float:fMax[3], Float:fPlayerMin[3], Float:fPlayerMax[3]
     pev(iEnt, pev_absmin, fMin)
     pev(iEnt, pev_absmax, fMax)
 
@@ -246,13 +250,12 @@ stock bool:corpseBlocked(iEnt)
         if ( !is_user_alive(id) )
             continue
 
-        pev(id, pev_absmin, fPMin)
-        pev(id, pev_absmax, fPMax)
-
+        pev(id, pev_absmin, fPlayerMin)
+        pev(id, pev_absmax, fPlayerMax)
         bOverlap = true
         for ( new i; i < 3; i ++ )
         {
-            if ( fPMin[i] >= fMax[i] || fPMax[i] <= fMin[i] )
+            if ( fPlayerMin[i] >= fMax[i] || fPlayerMax[i] <= fMin[i] )
             {
                 bOverlap = false
                 break
