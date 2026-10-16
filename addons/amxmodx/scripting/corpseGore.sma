@@ -40,7 +40,7 @@
 new g_cvarEnable, g_cvarGibKnife, g_cvarGibExplosive, g_cvarBreakVelocity, g_cvarBreakCount, g_cvarBreakLife,
     g_cvarBloodColor, g_cvarBloodScale,
     bool:g_bEnable, bool:g_bGibKnife, bool:g_bGibExplosive, g_iBreakVelocity, g_iBreakCount, g_iBreakLife,
-    g_iBloodColor, g_iBloodScale
+    g_iBloodColor, g_iBloodScale, g_iForwardCanGib
 
 new g_iSprite, g_iSpriteSpray, g_iModelGibs, g_iMaxPlayers
 new g_iDecal[2] = {204, 205}
@@ -77,6 +77,7 @@ public plugin_init()
     RegisterHam(Ham_TraceAttack, "info_target", "fwdTraceAttack")
     RegisterHam(Ham_TakeDamage, "info_target", "fwdTakeDamage")
     register_logevent("eventRoundStart", 2, "1=Round_Start")
+    g_iForwardCanGib = CreateMultiForward("CorpseGore_CanGib", ET_STOP, FP_CELL)
     g_iMaxPlayers = get_maxplayers()
 }
 
@@ -170,9 +171,7 @@ public fwdTraceAttack(iEnt, iAttacker, Float:fDamage, Float:fDir[3], iTr, iBits)
 
 public fwdTakeDamage(iEnt, iInflictor, iAttacker, Float:fDamage, iBits)
 {
-    if ( !g_bEnable
-    || !isCorpseGore(iEnt)
-    || !(iBits & CORPSE_DMG_EXPLOSIVE) )
+    if ( !g_bEnable || !isCorpseGore(iEnt) || !(iBits & CORPSE_DMG_EXPLOSIVE) )
         return HAM_IGNORED
 
     if ( g_bGibExplosive )
@@ -324,7 +323,7 @@ stock corpseFitBox(iEnt)
 
 stock corpseGoreGib(iEnt)
 {
-    new Float:fMin[3], Float:fMax[3], Float:fPos[3], Float:fSize[3]
+    new Float:fMin[3], Float:fMax[3], Float:fPos[3], Float:fSize[3], iReturn
     pev(iEnt, pev_absmin, fMin)
     pev(iEnt, pev_absmax, fMax)
 
@@ -334,28 +333,32 @@ stock corpseGoreGib(iEnt)
     fSize[0] = (fMax[0] - fMin[0]) * 0.25
     fSize[1] = (fMax[1] - fMin[1]) * 0.25
     fSize[2] = 8.0
-
-    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fPos)
-    write_byte(TE_BREAKMODEL)
-    write_coord_f(fPos[0])
-    write_coord_f(fPos[1])
-    write_coord_f(fPos[2])
-    write_coord_f(fSize[0])
-    write_coord_f(fSize[1])
-    write_coord_f(fSize[2])
-    write_coord_f(0.0)
-    write_coord_f(0.0)
-    write_coord_f(0.0)
-    write_byte(random_num(g_iBreakVelocity - 2, g_iBreakVelocity + 2))
-    write_short(g_iModelGibs)
-    write_byte(random_num(g_iBreakCount - 3, g_iBreakCount + 3))
-    write_byte(random_num(g_iBreakLife - 15, g_iBreakLife + 15))
-    write_byte(CORPSE_BREAK_FLESH)
-    message_end()
-
     corpseGoreBlood(fPos)
-    corpseGoreDecals(fPos)
-    corpseGoreKill(iEnt)
+
+    ExecuteForward(g_iForwardCanGib, iReturn, iEnt)
+    if ( iReturn == PLUGIN_CONTINUE )
+    {
+        message_begin_f(MSG_PVS, SVC_TEMPENTITY, fPos)
+        write_byte(TE_BREAKMODEL)
+        write_coord_f(fPos[0])
+        write_coord_f(fPos[1])
+        write_coord_f(fPos[2])
+        write_coord_f(fSize[0])
+        write_coord_f(fSize[1])
+        write_coord_f(fSize[2])
+        write_coord_f(0.0)
+        write_coord_f(0.0)
+        write_coord_f(0.0)
+        write_byte(random_num(g_iBreakVelocity - 2, g_iBreakVelocity + 2))
+        write_short(g_iModelGibs)
+        write_byte(random_num(g_iBreakCount - 3, g_iBreakCount + 3))
+        write_byte(random_num(g_iBreakLife - 15, g_iBreakLife + 15))
+        write_byte(CORPSE_BREAK_FLESH)
+        message_end()
+
+        corpseGoreDecals(fPos)
+        corpseGoreKill(iEnt)
+    }
 }
 
 stock corpseGoreDecals(const Float:fCenter[3])
