@@ -37,15 +37,23 @@
 #define CORPSE_PAD                  8.0
 #define CORPSE_HEIGHT               1.0
 
-new g_cvarEnable, g_cvarGibKnife, g_cvarGibExplosive, g_cvarBreakVelocity, g_cvarBreakCount, g_cvarBreakLife,
+enum _:DECALS
+{
+    DECAL_BLOOD,
+    DECAL_SHADOW
+}
+
+new g_cvarEnable, g_cvarGibKnife, g_cvarGibExplosive, g_cvarGibBullet, g_cvarBreakVelocity, g_cvarBreakCount, g_cvarBreakLife,
     g_cvarBloodColor, g_cvarBloodScale,
-    bool:g_bEnable, bool:g_bGibKnife, bool:g_bGibExplosive, g_iBreakVelocity, g_iBreakCount, g_iBreakLife,
+    bool:g_bEnable, bool:g_bGibKnife, bool:g_bGibExplosive, Float:g_fGibBullet, g_iBreakVelocity, g_iBreakCount, g_iBreakLife,
     g_iBloodColor, g_iBloodScale, g_iForwardCanGib
 
 new g_iSprite, g_iSpriteSpray, g_iModelGibs, g_iMaxPlayers
 new g_iDecal[2] = {204, 205}
-new Float:g_fKnifeHit[33]
-new g_szSoundKnife[] = "common/bodysplat.wav"
+new bool:g_bKnifeHit[MAX_PLAYERS + 1], g_bKnifeGib[MAX_PLAYERS + 1]
+new g_szSoundSlash[4][] = {"weapons/knife_hit1.wav", "weapons/knife_hit2.wav", "weapons/knife_hit3.wav", "weapons/knife_hit4.wav"}
+new g_szSoundStab[] = "weapons/knife_stab.wav"
+new g_szSoundSplat[] = "common/bodysplat.wav"
 new g_szCN[] = "corpse_gore"
 
 public plugin_init()
@@ -56,6 +64,7 @@ public plugin_init()
     g_cvarEnable        = register_cvar("corpsegore_enable", "1")
     g_cvarGibKnife      = register_cvar("corpsegore_gib_knife", "1")
     g_cvarGibExplosive  = register_cvar("corpsegore_gib_explosive", "1")
+    g_cvarGibBullet     = register_cvar("corpsegore_gib_bullet", "200.0")
     g_cvarBreakVelocity = register_cvar("corpsegore_break_velocity", "12")
     g_cvarBreakCount    = register_cvar("corpsegore_break_count", "12")
     g_cvarBreakLife     = register_cvar("corpsegore_break_life", "50")
@@ -77,7 +86,7 @@ public plugin_init()
     RegisterHam(Ham_TraceAttack, "info_target", "fwdTraceAttack")
     RegisterHam(Ham_TakeDamage, "info_target", "fwdTakeDamage")
     register_logevent("eventRoundStart", 2, "1=Round_Start")
-    g_iForwardCanGib = CreateMultiForward("CorpseGore_CanGib", ET_STOP, FP_CELL)
+    g_iForwardCanGib = CreateMultiForward("CorpseGore_CanGib", ET_STOP, FP_CELL, FP_ARRAY)
     g_iMaxPlayers = get_maxplayers()
 }
 
@@ -86,7 +95,17 @@ public plugin_precache()
     g_iSprite = engfunc(EngFunc_PrecacheModel, "sprites/blood.spr")
     g_iSpriteSpray = engfunc(EngFunc_PrecacheModel, "sprites/bloodspray.spr")
     g_iModelGibs = engfunc(EngFunc_PrecacheModel, "models/hgibs.mdl")
-    precache_sound(g_szSoundKnife)
+
+    precache_sound(g_szSoundStab)
+    precache_sound(g_szSoundSplat)
+    for ( new i; i < sizeof(g_szSoundSlash); i ++ )
+        precache_sound(g_szSoundSlash[i])
+}
+
+public plugin_natives()
+{
+    register_library("corpsegore")
+    register_native("corpsegore_get_corpse_health", "native_get_corpse_health")
 }
 
 public cvarUpdate(pCvar, const OldValue[], const NewValue[])
@@ -99,6 +118,7 @@ public cvarCache()
     g_bEnable        = get_pcvar_num(g_cvarEnable) == 1
     g_bGibKnife      = get_pcvar_num(g_cvarGibKnife) == 1
     g_bGibExplosive  = get_pcvar_num(g_cvarGibExplosive) == 1
+    g_fGibBullet     = floatmax(get_pcvar_float(g_cvarGibBullet), 0.0)
     g_iBreakVelocity = clamp(get_pcvar_num(g_cvarBreakVelocity), 0, 255)
     g_iBreakCount    = clamp(get_pcvar_num(g_cvarBreakCount), 0, 255)
     g_iBreakLife     = clamp(get_pcvar_num(g_cvarBreakLife), 0, 255)
@@ -139,11 +159,15 @@ public fwdEmitSound(id, iChannel, const szSample[], Float:fVol, Float:fAttn, iFl
 {
     if ( !g_bEnable
     || !(1 <= id <= g_iMaxPlayers)
-    || get_gametime() - g_fKnifeHit[id] > 0.1
+    || !g_bKnifeHit[id]
     || !equal(szSample, "weapons/knife_hitwall1.wav") )
         return FMRES_IGNORED
 
-    engfunc(EngFunc_EmitSound, id, iChannel, g_szSoundKnife, fVol, fAttn, iFlags, iPitch)
+    if ( !g_bKnifeGib[id] )
+        engfunc(EngFunc_EmitSound, id, iChannel, pev(id, pev_button) & IN_ATTACK ? g_szSoundSlash[random(sizeof(g_szSoundSlash))] : g_szSoundStab, fVol, fAttn, iFlags, iPitch)
+
+    g_bKnifeHit[id] = false
+    g_bKnifeGib[id] = false
     return FMRES_SUPERCEDE
 }
 
@@ -152,32 +176,45 @@ public fwdTraceAttack(iEnt, iAttacker, Float:fDamage, Float:fDir[3], iTr, iBits)
     if ( !g_bEnable || !isCorpseGore(iEnt) || pev(iEnt, CORPSEGORE_PENDING) )
         return HAM_IGNORED
 
+    new Float:fEnd[3]
+    get_tr2(iTr, TR_vecEndPos, fEnd)
+    corpseGoreBlood(fEnd)
+
     if ( g_bGibKnife &&
     is_user_alive(iAttacker) &&
     get_user_weapon(iAttacker) == CSW_KNIFE )
     {
-        g_fKnifeHit[iAttacker] = get_gametime()
-        corpseGoreGib(iEnt)
-    }
-    else
-    {
-        new Float:fEnd[3]
-        get_tr2(iTr, TR_vecEndPos, fEnd)
-        corpseGoreBlood(fEnd)
+        g_bKnifeHit[iAttacker] = true
+        g_bKnifeGib[iAttacker] = corpseGoreGib(iEnt)
     }
 
-    return HAM_SUPERCEDE
+    return HAM_IGNORED
 }
 
 public fwdTakeDamage(iEnt, iInflictor, iAttacker, Float:fDamage, iBits)
 {
-    if ( !g_bEnable || !isCorpseGore(iEnt) || !(iBits & CORPSE_DMG_EXPLOSIVE) )
+    if ( !g_bEnable || !isCorpseGore(iEnt) )
         return HAM_IGNORED
 
-    if ( g_bGibExplosive )
+    if ( g_bGibExplosive && (iBits & CORPSE_DMG_EXPLOSIVE) )
+    {
         corpseGoreGib(iEnt)
+        return HAM_SUPERCEDE
+    }
+    else if ( g_fGibBullet > 0.0 && (iBits & DMG_BULLET) )
+    {
+        new Float:fHealth
+        pev(iEnt, pev_health, fHealth)
+        fHealth -= fDamage
 
-    return HAM_SUPERCEDE
+        if ( fHealth <= 0.0 )
+        {
+            corpseGoreGib(iEnt)
+            return HAM_SUPERCEDE
+        }
+    }
+
+    return HAM_IGNORED
 }
 
 public corpseGoreTask(iEnt)
@@ -234,6 +271,7 @@ stock corpseActivate(iEnt)
     set_pev(iEnt, CORPSEGORE_PENDING, 0)
     set_pev(iEnt, pev_solid, SOLID_BBOX)
     set_pev(iEnt, pev_takedamage, DAMAGE_YES)
+    set_pev(iEnt, pev_health, g_fGibBullet)
     engfunc(EngFunc_SetOrigin, iEnt, fOrigin)
     remove_task(iEnt)
 }
@@ -321,23 +359,25 @@ stock corpseFitBox(iEnt)
     engfunc(EngFunc_SetOrigin, iEnt, fOrigin)
 }
 
-stock corpseGoreGib(iEnt)
+stock bool:corpseGoreGib(iEnt)
 {
-    new Float:fMin[3], Float:fMax[3], Float:fPos[3], Float:fSize[3], iReturn
-    pev(iEnt, pev_absmin, fMin)
-    pev(iEnt, pev_absmax, fMax)
+    new iOffset[1], iReturn
+    iOffset[0] = 0
+    ExecuteForward(g_iForwardCanGib, iReturn, iEnt, PrepareArray(iOffset, 1, 1))
 
-    fPos[0] = (fMin[0] + fMax[0]) * 0.5
-    fPos[1] = (fMin[1] + fMax[1]) * 0.5
-    fPos[2] = fMin[2] + 8.0
-    fSize[0] = (fMax[0] - fMin[0]) * 0.25
-    fSize[1] = (fMax[1] - fMin[1]) * 0.25
-    fSize[2] = 8.0
-    corpseGoreBlood(fPos)
-
-    ExecuteForward(g_iForwardCanGib, iReturn, iEnt)
     if ( iReturn == PLUGIN_CONTINUE )
     {
+        new Float:fMin[3], Float:fMax[3], Float:fPos[3], Float:fSize[3]
+        pev(iEnt, pev_absmin, fMin)
+        pev(iEnt, pev_absmax, fMax)
+
+        fPos[0] = (fMin[0] + fMax[0]) * 0.5
+        fPos[1] = (fMin[1] + fMax[1]) * 0.5
+        fPos[2] = fMin[2] + 8.0 + iOffset[0]
+        fSize[0] = (fMax[0] - fMin[0]) * 0.25
+        fSize[1] = (fMax[1] - fMin[1]) * 0.25
+        fSize[2] = 8.0
+
         message_begin_f(MSG_PVS, SVC_TEMPENTITY, fPos)
         write_byte(TE_BREAKMODEL)
         write_coord_f(fPos[0])
@@ -356,9 +396,14 @@ stock corpseGoreGib(iEnt)
         write_byte(CORPSE_BREAK_FLESH)
         message_end()
 
+        engfunc(EngFunc_EmitSound, iEnt, CHAN_ITEM, g_szSoundSplat, VOL_NORM, ATTN_NORM, 0, PITCH_NORM)
+        corpseGoreBlood(fPos)
         corpseGoreDecals(fPos)
         corpseGoreKill(iEnt)
+        return true
     }
+
+    return false
 }
 
 stock corpseGoreDecals(const Float:fCenter[3])
@@ -407,4 +452,9 @@ stock corpseGoreKill(iEnt)
 {
     if ( pev_valid(iEnt) )
         engfunc(EngFunc_RemoveEntity, iEnt)
+}
+
+public Float:native_get_corpse_health(iPlugin, iParams)
+{
+    return g_fGibBullet
 }
