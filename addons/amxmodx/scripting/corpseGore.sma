@@ -76,6 +76,7 @@ public plugin_init()
     hook_cvar_change(g_cvarGibKnife,        "cvarUpdate")
     hook_cvar_change(g_cvarGibExplosive,    "cvarUpdate")
     hook_cvar_change(g_cvarBreakVelocity,   "cvarUpdate")
+    hook_cvar_change(g_cvarGibBullet,       "cvarUpdate")
     hook_cvar_change(g_cvarBreakCount,      "cvarUpdate")
     hook_cvar_change(g_cvarBreakLife,       "cvarUpdate")
     hook_cvar_change(g_cvarBloodColor,      "cvarUpdate")
@@ -118,8 +119,8 @@ public cvarCache()
     g_bEnable        = get_pcvar_num(g_cvarEnable) == 1
     g_bGibKnife      = get_pcvar_num(g_cvarGibKnife) == 1
     g_bGibExplosive  = get_pcvar_num(g_cvarGibExplosive) == 1
-    g_fGibBullet     = floatmax(get_pcvar_float(g_cvarGibBullet), 0.0)
     g_iBreakVelocity = clamp(get_pcvar_num(g_cvarBreakVelocity), 0, 255)
+    g_fGibBullet     = floatmax(get_pcvar_float(g_cvarGibBullet), 0.0)
     g_iBreakCount    = clamp(get_pcvar_num(g_cvarBreakCount), 0, 255)
     g_iBreakLife     = clamp(get_pcvar_num(g_cvarBreakLife), 0, 255)
     g_iBloodColor    = clamp(get_pcvar_num(g_cvarBloodColor), 0, 255)
