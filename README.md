@@ -17,6 +17,10 @@ Corpses can be shot, knifed or blown up, and burst into gibs, blood and floor de
 - Corpses are only made solid once no player is standing inside them
 - Corpses are removed automatically on every round start
 
+## 📋 Requirements
+- ReGameDLL
+- AMX Mod X 1.10+
+
 ## ⚙️ Configuration
 ```ini
 # Plugin settings (defined as cvars):
