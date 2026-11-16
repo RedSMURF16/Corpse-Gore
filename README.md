@@ -36,3 +36,5 @@ Corpses can be shot, knifed or blown up, and burst into gibs, blood and floor de
 ```text
 * v1.0: Initial release.
 ```
+
+[![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20video-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=Q4awRNOEF1g)
