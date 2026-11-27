@@ -1,7 +1,7 @@
 <h1 align="center">Corpse Gore</h1>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=Q4awRNOEF1g"><img src="https://img.youtube.com/vi/Q4awRNOEF1g/maxresdefault.jpg" alt="Watch on YouTube" width="600"></a>
+  <img src="images/demo.gif" alt="Corpse Gore">
 </p>
 
 ## 📝 Description
